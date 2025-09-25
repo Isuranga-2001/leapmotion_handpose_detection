@@ -4,6 +4,8 @@ import time
 import json
 import numpy as np
 import cv2
+import os
+import argparse
 from functions.extract_features import extract_features, MyListener
 
 
@@ -23,18 +25,43 @@ class VisualizationCanvas:
         else:
             return None
             
-    def render_hands(self, event):
+    def render_hands(self, event, demo_instance=None):
         self.output_image[:, :] = 0
         
         cv2.putText(
             self.output_image,
-            "Capture Hand Features - Press 'q' to Quit",
+            "Press 's' to start, 'space/x' to stop & save, 'ESC' to quit",
             (10, 25),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
+            0.5,
             self.font_colour,
             2,
         )
+        
+        # Show capture status
+        if demo_instance:
+            status_color = (0, 255, 0) if demo_instance.capturing else (0, 0, 255)
+            status_text = "CAPTURING" if demo_instance.capturing else "READY"
+            cv2.putText(
+                self.output_image,
+                status_text,
+                (10, 50),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                status_color,
+                2,
+            )
+            
+            if demo_instance.capturing and hasattr(demo_instance, 'current_session_features'):
+                cv2.putText(
+                    self.output_image,
+                    f"Samples: {len(demo_instance.current_session_features)}",
+                    (10, 75),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (255, 255, 0),
+                    1,
+                )
         
         if len(event.hands) == 0:
             cv2.putText(
@@ -96,7 +123,7 @@ class VisualizationCanvas:
     
     def display_features_on_canvas(self, hand, hand_index):
         if self.current_features:
-            y_offset = 60 + (hand_index * 200)
+            y_offset = 100 + (hand_index * 200)  # Adjusted for status display
             
             cv2.putText(
                 self.output_image,
@@ -145,10 +172,14 @@ class VisualizationCanvas:
 
 class FeatureExtractionDemo:
     
-    def __init__(self, canvas=None):
+    def __init__(self, canvas=None, csv_filename="data.csv"):
         self.features_collected = []
+        self.current_session_features = []
         self.hand_count = 0
         self.canvas = canvas
+        self.csv_filename = csv_filename
+        self.capturing = False
+        self.session_count = 0
         
     def print_feature_details(self, features, hand_type):
         print(f"\n{'='*50}")
@@ -188,6 +219,56 @@ class FeatureExtractionDemo:
             
         if abs(features['palm_normal_z']) > 0.8:
             print("Palm facing forward/backward - potential WAVE gesture")
+    
+    def start_capturing(self):
+        self.capturing = True
+        self.current_session_features = []
+        print(f"\nCAPTURING STARTED - Session {self.session_count + 1}")
+        
+    def stop_and_save(self):
+        if not self.capturing:
+            return
+        
+        self.capturing = False
+        
+        if not self.current_session_features:
+            print("No data to save - no hands were detected during capture session")
+            return
+        
+        # Generate filename with ID
+        base_name, ext = os.path.splitext(self.csv_filename)
+        if self.session_count == 0:
+            filename = self.csv_filename
+        else:
+            filename = f"{base_name}_{self.session_count}{ext}"
+        
+        filepath = os.path.join("data", filename)
+        
+        try:
+            # Create data directory if it doesn't exist
+            os.makedirs("data", exist_ok=True)
+            
+            # Save to CSV
+            with open(filepath, 'w', newline='') as csvfile:
+                if self.current_session_features:
+                    fieldnames = self.current_session_features[0].keys()
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(self.current_session_features)
+            
+            print(f"CAPTURE STOPPED - Data saved to {filepath}")
+            print(f"   Samples saved: {len(self.current_session_features)}")
+            
+            self.session_count += 1
+            
+        except Exception as e:
+            print(f"Error saving data: {e}")
+    
+    def add_feature_sample(self, features):
+        if self.capturing:
+            self.current_session_features.append(features)
+        # Always add to the overall collection for display purposes
+        self.features_collected.append(features)
 
 
 class DemoListener(leap.Listener):
@@ -214,7 +295,7 @@ class DemoListener(leap.Listener):
         current_time = time.time()
         
         if self.canvas:
-            self.canvas.render_hands(event)
+            self.canvas.render_hands(event, self.demo)
         
         if current_time - self.last_print_time < self.print_interval:
             return
@@ -228,12 +309,13 @@ class DemoListener(leap.Listener):
                 
                 features['timestamp'] = current_time
                 features['hand_type'] = hand.type
-                self.demo.features_collected.append(features)
+                self.demo.add_feature_sample(features)
                 self.demo.hand_count += 1
                 
-                self.demo.print_feature_details(features, hand.type)
-                
-                self.demo.analyze_gesture_patterns(features)
+                # Only print details if we're capturing or in demo mode
+                if self.demo.capturing:
+                    self.demo.print_feature_details(features, hand.type)
+                    self.demo.analyze_gesture_patterns(features)
                 
             self.last_print_time = current_time
         else:
@@ -242,46 +324,42 @@ class DemoListener(leap.Listener):
                 self.last_print_time = current_time
 
 
-def save_features_to_file(features_list, filename="demo_features.json"):
-    try:
-        with open(filename, 'w') as f:
-            json.dump(features_list, f, indent=2)
-        print(f"\nFeatures saved to {filename}")
-    except Exception as e:
-        print(f"Error saving features: {e}")
-
-
 def print_demo_instructions():
     print("\n" + "="*60)
-    print("LEAP MOTION FEATURE EXTRACTION DEMO WITH VISUALIZATION")
+    print("LEAP MOTION FEATURE EXTRACTION AND DATA CAPTURE")
     print("="*60)
-    print("This demo showcases the extract_features() function capabilities:")
+    print("This demo captures hand tracking features to CSV files:")
     print()
-    print("Features extracted:")
+    print("Features captured:")
     print("  - Palm position (relative to wrist)")
     print("  - Palm normal vector (orientation)")
     print("  - Grab and pinch strength")
     print("  - All 5 fingertip positions (normalized)")
+    print("  - Timestamp and hand type")
     print()
-    print("Instructions:")
-    print("  - Place your hand(s) over the Leap Motion sensor")
-    print("  - Move your fingers to see different feature values")
-    print("  - Try different gestures (fist, point, pinch, wave)")
-    print("  - Press 'q' in the visualization window to quit")
-    print("  - Press Ctrl+C in terminal to stop and save data")
+    print("Controls:")
+    print("  's' = Start capturing data")
+    print("  'space' or 'x' = Stop capturing and save to CSV")
+    print("  'ESC' = Quit application")
     print()
-    print("Visualization Controls:")
-    print("  - Real-time hand skeleton rendering")
-    print("  - Feature values displayed on screen")
-    print("  - Hand type and gesture recognition")
+    print("Output:")
+    print("  - Files saved to 'data/' directory")
+    print("  - Sequential naming: data.csv, data_1.csv, data_2.csv, etc.")
+    print("  - Real-time hand skeleton visualization")
     print("="*60)
 
 
 def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Leap Motion Hand Feature Capture')
+    parser.add_argument('--filename', '-f', default='data.csv', 
+                       help='CSV filename for saving data (default: data.csv)')
+    args = parser.parse_args()
+    
     print_demo_instructions()
     
     canvas = VisualizationCanvas()
-    demo = FeatureExtractionDemo(canvas)
+    demo = FeatureExtractionDemo(canvas, args.filename)
     listener = DemoListener(demo, canvas)
     
     connection = leap.Connection()
@@ -289,7 +367,8 @@ def main():
     
     try:
         with connection.open():
-            print("\nStarting Leap Motion tracking with visualization...")
+            print(f"\nStarting Leap Motion tracking...")
+            print(f"CSV filename: {args.filename}")
             connection.set_tracking_mode(leap.TrackingMode.Desktop)
             
             running = True
@@ -297,26 +376,27 @@ def main():
                 cv2.imshow(canvas.name, canvas.output_image)
                 
                 key = cv2.waitKey(1) & 0xFF
-                if key == ord('q'):
+                if key == 27:  # ESC key
                     running = False
-                elif key == 27:  # ESC key
-                    running = False
+                elif key == ord('s'):  # Start capturing
+                    demo.start_capturing()
+                elif key == 32 or key == ord('x'):  # Space or 'x' - stop and save
+                    demo.stop_and_save()
                     
                 time.sleep(0.01)
                 
     except KeyboardInterrupt:
-        print("\n\nDemo stopped")
+        print("\n\nDemo stopped by user")
         
     finally:
         cv2.destroyAllWindows()
         
-        print(f"\nDemo Summary:")
+        print(f"\nSession Summary:")
         print(f"  - Total hands detected: {demo.hand_count}")
-        print(f"  - Feature samples collected: {len(demo.features_collected)}")
+        print(f"  - Sessions completed: {demo.session_count}")
+        print(f"  - Total samples collected: {len(demo.features_collected)}")
         
         if demo.features_collected:
-            save_features_to_file(demo.features_collected)
-            
             avg_grab = sum(f['grab_strength'] for f in demo.features_collected) / len(demo.features_collected)
             avg_pinch = sum(f['pinch_strength'] for f in demo.features_collected) / len(demo.features_collected)
             

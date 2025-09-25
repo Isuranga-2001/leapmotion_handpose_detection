@@ -26,18 +26,21 @@ def extract_features(hand):
     features["pinch_strength"] = hand.pinch_strength
 
     # Reference scale (palm to middle fingertip distance)
-    middle_tip = hand.digits[2].tip.position
+    # Get the tip of middle finger (digit 2) using the last bone's next_joint
+    middle_digit = hand.digits[2]
+    middle_tip = middle_digit.bones[3].next_joint  # Distal bone's next joint is the tip
     ref_dist = ((middle_tip.x - wrist.x) ** 2 +
                 (middle_tip.y - wrist.y) ** 2 +
                 (middle_tip.z - wrist.z) ** 2) ** 0.5
     ref_dist = ref_dist if ref_dist != 0 else 1.0
 
     # Finger tip positions (relative to wrist, scaled)
-    for finger in hand.digits:
-        tip = finger.tip.position
-        features[f"finger_{finger.type}_x"] = (tip.x - wrist.x) / ref_dist
-        features[f"finger_{finger.type}_y"] = (tip.y - wrist.y) / ref_dist
-        features[f"finger_{finger.type}_z"] = (tip.z - wrist.z) / ref_dist
+    for finger_index, finger in enumerate(hand.digits):
+        # Get fingertip as the next_joint of the distal bone (index 3)
+        tip = finger.bones[3].next_joint
+        features[f"finger_{finger_index}_x"] = (tip.x - wrist.x) / ref_dist
+        features[f"finger_{finger_index}_y"] = (tip.y - wrist.y) / ref_dist
+        features[f"finger_{finger_index}_z"] = (tip.z - wrist.z) / ref_dist
 
     return features
 
