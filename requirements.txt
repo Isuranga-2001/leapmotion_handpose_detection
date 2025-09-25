@@ -1,0 +1,7 @@
+build
+cffi
+opencv-python
+numpy
+pandas
+scikit-learn
+joblib
