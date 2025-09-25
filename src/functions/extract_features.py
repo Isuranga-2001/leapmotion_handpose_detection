@@ -1,58 +1,45 @@
 import leap
-import time
-import math
-import csv
 
 # ---------- Feature Extraction Helper ----------
 def extract_features(hand):
     """
-    Extracts static pose features from a single hand.
-    Features include normalized joint positions, inter-finger distances, angles, and hand attributes.
-    Returns a flat feature vector (list of floats).
+    Extract Leap Motion hand features with wrist-based normalization.
+    Wrist (arm.prev_joint) is set as origin (0,0,0).
     """
+    features = {}
 
-    features = []
+    wrist = hand.arm.prev_joint  # wrist joint
+    palm = hand.palm.position
 
-    # --- Palm features ---
-    palm_pos = hand.palm.position
-    palm_normal = hand.palm.normal
-    features += [palm_pos.x, palm_pos.y, palm_pos.z]          # Palm position
-    features += [palm_normal.x, palm_normal.y, palm_normal.z] # Palm normal
+    # Normalized palm position
+    features["palm_x"] = palm.x - wrist.x
+    features["palm_y"] = palm.y - wrist.y
+    features["palm_z"] = palm.z - wrist.z
 
-    # Grab/Pinch strength
-    features.append(hand.grab_strength)
-    features.append(hand.pinch_strength)
-    features.append(hand.palm.width)
+    # Palm normal (orientation)
+    features["palm_normal_x"] = hand.palm.normal.x
+    features["palm_normal_y"] = hand.palm.normal.y
+    features["palm_normal_z"] = hand.palm.normal.z
 
-    # --- Finger features ---
-    # Normalize relative to palm position
+    # Grab & pinch strengths
+    features["grab_strength"] = hand.grab_strength
+    features["pinch_strength"] = hand.pinch_strength
+
+    # Reference scale (palm to middle fingertip distance)
+    middle_tip = hand.digits[2].tip.position
+    ref_dist = ((middle_tip.x - wrist.x) ** 2 +
+                (middle_tip.y - wrist.y) ** 2 +
+                (middle_tip.z - wrist.z) ** 2) ** 0.5
+    ref_dist = ref_dist if ref_dist != 0 else 1.0
+
+    # Finger tip positions (relative to wrist, scaled)
     for finger in hand.digits:
         tip = finger.tip.position
-        tip_x = tip.x - palm_pos.x
-        tip_y = tip.y - palm_pos.y
-        tip_z = tip.z - palm_pos.z
-        features += [tip_x, tip_y, tip_z]
-
-        # Finger direction (unit vector)
-        dir_vec = finger.direction
-        features += [dir_vec.x, dir_vec.y, dir_vec.z]
-
-        # Finger length & width
-        features.append(finger.length)
-        features.append(finger.width)
-
-    # --- Inter-finger distances (tips only) ---
-    tips = [f.tip.position for f in hand.digits]
-    for i in range(len(tips)):
-        for j in range(i+1, len(tips)):
-            dx = tips[i].x - tips[j].x
-            dy = tips[i].y - tips[j].y
-            dz = tips[i].z - tips[j].z
-            dist = math.sqrt(dx*dx + dy*dy + dz*dz)
-            features.append(dist)
+        features[f"finger_{finger.type}_x"] = (tip.x - wrist.x) / ref_dist
+        features[f"finger_{finger.type}_y"] = (tip.y - wrist.y) / ref_dist
+        features[f"finger_{finger.type}_z"] = (tip.z - wrist.z) / ref_dist
 
     return features
-
 
 # ---------- Listener Class ----------
 class MyListener(leap.Listener):
