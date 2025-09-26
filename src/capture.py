@@ -6,6 +6,8 @@ import numpy as np
 import cv2
 import os
 import argparse
+import tkinter as tk
+from tkinter import simpledialog
 from functions.extract_features import extract_features, MyListener
 
 
@@ -235,28 +237,53 @@ class FeatureExtractionDemo:
             print("No data to save - no hands were detected during capture session")
             return
         
-        # Generate filename with ID
-        base_name, ext = os.path.splitext(self.csv_filename)
-        if self.session_count == 0:
-            filename = self.csv_filename
-        else:
-            filename = f"{base_name}_{self.session_count}{ext}"
+        # Ask for class name using a dialog
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
         
-        filepath = os.path.join("data", filename)
+        class_name = simpledialog.askstring(
+            "Class Name Input", 
+            f"Enter class name for captured data:\n({len(self.current_session_features)} samples captured)",
+            parent=root
+        )
+        
+        root.destroy()  # Clean up the tkinter window
+        
+        # If user cancelled or didn't enter a name, don't save
+        if not class_name or class_name.strip() == "":
+            print("Save cancelled - no class name provided")
+            return
+        
+        class_name = class_name.strip()
+        
+        # Add class name to all features
+        for feature in self.current_session_features:
+            feature['class_name'] = class_name
+        
+        # Always use the same filename (single CSV file)
+        filepath = os.path.join("data", self.csv_filename)
         
         try:
             # Create data directory if it doesn't exist
             os.makedirs("data", exist_ok=True)
             
-            # Save to CSV
-            with open(filepath, 'w', newline='') as csvfile:
+            # Check if file exists to determine if we need to write header
+            file_exists = os.path.exists(filepath)
+            
+            # Append to CSV (or create new if doesn't exist)
+            with open(filepath, 'a', newline='') as csvfile:
                 if self.current_session_features:
                     fieldnames = self.current_session_features[0].keys()
                     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                    writer.writeheader()
+                    
+                    # Write header only if file doesn't exist or is empty
+                    if not file_exists or os.path.getsize(filepath) == 0:
+                        writer.writeheader()
+                    
                     writer.writerows(self.current_session_features)
             
-            print(f"CAPTURE STOPPED - Data saved to {filepath}")
+            print(f"CAPTURE STOPPED - Data appended to {filepath}")
+            print(f"   Class: {class_name}")
             print(f"   Samples saved: {len(self.current_session_features)}")
             
             self.session_count += 1
@@ -308,13 +335,16 @@ class DemoListener(leap.Listener):
                     self.canvas.set_current_features(features)
                 
                 features['timestamp'] = current_time
-                features['hand_type'] = hand.type
+                # Convert hand type to binary: 0 for left, 1 for right
+                features['hand_type'] = 1 if hand.type == leap.HandType.Right else 0
                 self.demo.add_feature_sample(features)
                 self.demo.hand_count += 1
                 
                 # Only print details if we're capturing or in demo mode
                 if self.demo.capturing:
-                    self.demo.print_feature_details(features, hand.type)
+                    # Use original hand.type for display, but binary value is saved in CSV
+                    hand_type_display = "Right" if hand.type == leap.HandType.Right else "Left"
+                    self.demo.print_feature_details(features, hand_type_display)
                     self.demo.analyze_gesture_patterns(features)
                 
             self.last_print_time = current_time
@@ -323,40 +353,12 @@ class DemoListener(leap.Listener):
                 print("\nNo hands detected - place your hand over the Leap Motion sensor")
                 self.last_print_time = current_time
 
-
-def print_demo_instructions():
-    print("\n" + "="*60)
-    print("LEAP MOTION FEATURE EXTRACTION AND DATA CAPTURE")
-    print("="*60)
-    print("This demo captures hand tracking features to CSV files:")
-    print()
-    print("Features captured:")
-    print("  - Palm position (relative to wrist)")
-    print("  - Palm normal vector (orientation)")
-    print("  - Grab and pinch strength")
-    print("  - All 5 fingertip positions (normalized)")
-    print("  - Timestamp and hand type")
-    print()
-    print("Controls:")
-    print("  's' = Start capturing data")
-    print("  'space' or 'x' = Stop capturing and save to CSV")
-    print("  'ESC' = Quit application")
-    print()
-    print("Output:")
-    print("  - Files saved to 'data/' directory")
-    print("  - Sequential naming: data.csv, data_1.csv, data_2.csv, etc.")
-    print("  - Real-time hand skeleton visualization")
-    print("="*60)
-
-
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Leap Motion Hand Feature Capture')
     parser.add_argument('--filename', '-f', default='data.csv', 
                        help='CSV filename for saving data (default: data.csv)')
     args = parser.parse_args()
-    
-    print_demo_instructions()
     
     canvas = VisualizationCanvas()
     demo = FeatureExtractionDemo(canvas, args.filename)
@@ -369,6 +371,10 @@ def main():
         with connection.open():
             print(f"\nStarting Leap Motion tracking...")
             print(f"CSV filename: {args.filename}")
+            print("\nControls:")
+            print("  's' = Start capturing")
+            print("  'space/x' = Stop & save (will ask for class name)")
+            print("  'ESC' = Quit")
             connection.set_tracking_mode(leap.TrackingMode.Desktop)
             
             running = True
