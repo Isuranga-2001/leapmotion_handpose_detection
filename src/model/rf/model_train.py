@@ -7,7 +7,7 @@ from sklearn.preprocessing import LabelEncoder
 import joblib
 import os
 
-def train_random_forest(csv_path, model_out="rf_leapmotion_gestures.pkl", test_size=0.2, n_estimators=200, random_state=42):
+def train_random_forest(csv_path, model_out="model/rf/rf_leapmotion_gestures.pkl", test_size=0.2, n_estimators=200, random_state=42):
     """
     Train a Random Forest classifier on LeapMotion gesture dataset.
 
@@ -159,10 +159,10 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Train Random Forest for LeapMotion hand gesture classification")
-    parser.add_argument("--csv", type=str, default="../data/dataset.csv", 
-                       help="Path to input CSV dataset (default: ../data/dataset.csv)")
-    parser.add_argument("--model_out", type=str, default="rf_leapmotion_gestures.pkl", 
-                       help="Path to save trained model (default: rf_leapmotion_gestures.pkl)")
+    parser.add_argument("--csv", type=str, default="data/rf_data/dataset.csv", 
+                       help="Path to input CSV dataset (default: ../../data/rf_data/dataset.csv)")
+    parser.add_argument("--model_out", type=str, default="model/rf/rf_leapmotion_gestures.pkl", 
+                       help="Path to save trained model (default: model/rf/rf_leapmotion_gestures.pkl)")
     parser.add_argument("--test_size", type=float, default=0.2, 
                        help="Test size fraction (default: 0.2)")
     parser.add_argument("--n_estimators", type=int, default=200,

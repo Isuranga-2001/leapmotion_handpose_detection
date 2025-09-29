@@ -1,34 +1,24 @@
-import joblib
-import numpy as np
-import pandas as pd
+#!/usr/bin/env python3
+"""
+Test script for LeapMotion gesture classification model.
+This script tests the trained model using the test_data.csv file.
+"""
+
 import os
 import sys
-import time
+import pandas as pd
+import numpy as np
+import joblib
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
-# Add the parent directory to the path to import functions
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-try:
-    import leap
-    from functions.extract_features import extract_features
-    LEAP_AVAILABLE = True
-except ImportError:
-    print("[WARNING] Leap Motion SDK not available. Only CSV-based prediction will work.")
-    LEAP_AVAILABLE = False
-
+# Add parent directories to path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
 
 def load_trained_model(model_path):
     """
     Load the trained Random Forest model and associated metadata.
-    
-    Args:
-        model_path: Path to the saved model (.pkl file)
-        
-    Returns:
-        model: Trained RandomForestClassifier
-        label_encoder: LabelEncoder for class names
-        feature_columns: List of expected feature column names
-        test_accuracy: Model's test accuracy
     """
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model file not found: {model_path}")
@@ -52,22 +42,9 @@ def load_trained_model(model_path):
     except Exception as e:
         raise ValueError(f"Error loading model: {e}")
 
-
 def predict_from_features(model, label_encoder, feature_columns, feature_vector, show_probabilities=True):
     """
     Make a prediction from a feature vector.
-    
-    Args:
-        model: Trained classifier
-        label_encoder: LabelEncoder for class names (can be None)
-        feature_columns: Expected feature column names (can be None)
-        feature_vector: Feature vector or dictionary of features
-        show_probabilities: Whether to show class probabilities
-        
-    Returns:
-        predicted_class: Predicted gesture class
-        confidence: Confidence score
-        probabilities: Class probabilities (if available)
     """
     # Handle feature vector input
     if isinstance(feature_vector, dict):
@@ -111,263 +88,148 @@ def predict_from_features(model, label_encoder, feature_columns, feature_vector,
     except Exception as e:
         raise ValueError(f"Prediction error: {e}")
 
-
-def predict_from_csv_row(model_path, csv_path, row_index=0):
+def test_model_with_test_data(model_path, test_csv_path):
     """
-    Predict gesture from a specific row in a CSV file.
-    
-    Args:
-        model_path: Path to trained model
-        csv_path: Path to CSV file with features
-        row_index: Index of row to predict (0-based)
+    Test the model with the test_data.csv file and calculate accuracy.
     """
     print(f"[INFO] Loading model from {model_path}")
-    model, label_encoder, feature_columns, test_acc = load_trained_model(model_path)
-    print(f"[INFO] Model test accuracy: {test_acc}")
+    model, label_encoder, feature_columns, train_acc = load_trained_model(model_path)
+    print(f"[INFO] Model training accuracy: {train_acc}")
     
-    print(f"[INFO] Loading CSV data from {csv_path}")
-    df = pd.read_csv(csv_path)
+    print(f"[INFO] Loading test data from {test_csv_path}")
+    df = pd.read_csv(test_csv_path)
+    print(f"[INFO] Test dataset contains {len(df)} samples")
     
-    if row_index >= len(df):
-        print(f"[ERROR] Row index {row_index} out of range. CSV has {len(df)} rows.")
-        return
-    
-    # Get the row data
-    row_data = df.iloc[row_index]
-    print(f"[INFO] Predicting for row {row_index}")
-    
-    # Show actual class if available
-    if 'class_name' in df.columns:
-        actual_class = row_data['class_name']
-        print(f"[INFO] Actual class: {actual_class}")
-    
-    # Extract features (exclude metadata columns)
+    # Extract features and labels
     exclude_cols = ['timestamp', 'hand_type', 'class_name']
-    feature_dict = {col: row_data[col] for col in df.columns if col not in exclude_cols}
+    feature_cols = [col for col in df.columns if col not in exclude_cols]
     
-    print(f"[INFO] Feature vector extracted with {len(feature_dict)} features")
+    X_test = df[feature_cols].values
+    y_true = df['class_name'].values
     
-    # Make prediction
-    predicted_class, confidence, probabilities = predict_from_features(
-        model, label_encoder, feature_columns, feature_dict
-    )
+    print(f"[INFO] Using {len(feature_cols)} features for prediction")
+    print(f"[INFO] Classes in test data: {np.unique(y_true)}")
     
-    return predicted_class, confidence
+    # Make predictions
+    print("\n[INFO] Making predictions...")
+    predictions = []
+    confidences = []
+    
+    for i in range(len(X_test)):
+        feature_vector = X_test[i].reshape(1, -1)
+        pred = model.predict(feature_vector)[0]
+        prob = model.predict_proba(feature_vector)[0]
+        confidence = np.max(prob)
+        
+        # Decode prediction if label encoder is available
+        if label_encoder is not None:
+            predicted_class = label_encoder.inverse_transform([pred])[0]
+        else:
+            predicted_class = str(pred)
+        
+        predictions.append(predicted_class)
+        confidences.append(confidence)
+    
+    # Calculate accuracy
+    accuracy = accuracy_score(y_true, predictions)
+    
+    print(f"\n{'='*60}")
+    print("TEST RESULTS:")
+    print(f"{'='*60}")
+    print(f"Test Accuracy: {accuracy:.3f} ({accuracy*100:.1f}%)")
+    print(f"Training Accuracy: {train_acc}")
+    print(f"Total Samples Tested: {len(predictions)}")
+    print(f"Average Confidence: {np.mean(confidences):.3f}")
+    
+    # Detailed classification report
+    print(f"\nClassification Report:")
+    print(classification_report(y_true, predictions))
+    
+    # Confusion Matrix
+    print(f"\nConfusion Matrix:")
+    cm = confusion_matrix(y_true, predictions)
+    print(cm)
+    
+    # Show some example predictions
+    print(f"\n{'='*60}")
+    print("SAMPLE PREDICTIONS:")
+    print(f"{'='*60}")
+    
+    for i in range(min(10, len(df))):
+        actual = y_true[i]
+        predicted = predictions[i]
+        confidence = confidences[i]
+        correct = "✓" if actual == predicted else "✗"
+        
+        print(f"Sample {i+1:2d}: Actual={actual}, Predicted={predicted}, Confidence={confidence:.3f} {correct}")
+    
+    return accuracy, predictions, confidences
 
-
-def predict_live_leapmotion(model_path, duration=10):
+def main():
     """
-    Predict gestures from live Leap Motion data.
+    Test the trained model with test_data.csv
+    """
+    print("LeapMotion Gesture Classification - Model Testing")
+    print("=" * 60)
     
-    Args:
-        model_path: Path to trained model
-        duration: How long to collect predictions (seconds)
-    """
-    if not LEAP_AVAILABLE:
-        print("[ERROR] Leap Motion SDK not available for live prediction.")
+    # Paths - using relative paths from the model directory
+    model_path = "model/rf/rf_leapmotion_gestures.pkl"
+    test_data_path = "data/rf_data/test_data.csv"
+    
+    # Check if files exist
+    if not os.path.exists(model_path):
+        print(f"[ERROR] Model file not found: {model_path}")
+        print("Please train the model first using model_train.py")
         return
     
-    print(f"[INFO] Loading model from {model_path}")
-    model, label_encoder, feature_columns, test_acc = load_trained_model(model_path)
-    print(f"[INFO] Model test accuracy: {test_acc}")
-    
-    class PredictionListener(leap.Listener):
-        def __init__(self, model, label_encoder, feature_columns):
-            super().__init__()
-            self.model = model
-            self.label_encoder = label_encoder
-            self.feature_columns = feature_columns
-            self.prediction_count = 0
-            self.last_prediction_time = 0
-            self.prediction_interval = 1.0  # Predict every 1 second
-    
-        def on_connection_event(self, event):
-            print("[INFO] Connected to Leap Motion device")
-    
-        def on_tracking_event(self, event):
-            current_time = time.time()
-            
-            if current_time - self.last_prediction_time < self.prediction_interval:
-                return
-                
-            if event.hands:
-                for hand in event.hands:
-                    hand_type = "Right" if hand.type == leap.HandType.Right else "Left"
-                    
-                    # Extract features
-                    features = extract_features(hand)
-                    
-                    print(f"\n{'='*50}")
-                    print(f"PREDICTION #{self.prediction_count + 1} - {hand_type} Hand")
-                    print(f"{'='*50}")
-                    
-                    # Make prediction
-                    try:
-                        predicted_class, confidence, probabilities = predict_from_features(
-                            self.model, self.label_encoder, self.feature_columns, features
-                        )
-                        
-                        self.prediction_count += 1
-                        self.last_prediction_time = current_time
-                        
-                    except Exception as e:
-                        print(f"[ERROR] Prediction failed: {e}")
-            else:
-                if current_time - self.last_prediction_time >= self.prediction_interval:
-                    print("\n[INFO] No hands detected - place your hand over the sensor")
-                    self.last_prediction_time = current_time
-    
-    listener = PredictionListener(model, label_encoder, feature_columns)
-    connection = leap.Connection()
-    connection.add_listener(listener)
+    if not os.path.exists(test_data_path):
+        print(f"[ERROR] Test data file not found: {test_data_path}")
+        print("Please ensure the test_data.csv file exists in the data directory")
+        return
     
     try:
-        with connection.open():
-            print(f"\n[INFO] Starting live prediction for {duration} seconds...")
-            print("[INFO] Place your hand over the Leap Motion sensor")
-            print("[INFO] Press Ctrl+C to stop early")
-            
-            connection.set_tracking_mode(leap.TrackingMode.Desktop)
-            
-            start_time = time.time()
-            while time.time() - start_time < duration:
-                time.sleep(0.1)
-                
-        print(f"\n[INFO] Live prediction completed. Total predictions: {listener.prediction_count}")
+        # Test the model with the test data
+        print(f"\nTesting model with test_data.csv...")
+        print("-" * 60)
         
-    except KeyboardInterrupt:
-        print(f"\n[INFO] Stopped by user. Total predictions: {listener.prediction_count}")
-
-
-def test_model_with_dataset(model_path, csv_path, num_samples=10):
-    """
-    Test the model with multiple samples from a dataset.
-    
-    Args:
-        model_path: Path to trained model
-        csv_path: Path to test CSV file
-        num_samples: Number of random samples to test
-    """
-    print(f"[INFO] Loading model from {model_path}")
-    model, label_encoder, feature_columns, test_acc = load_trained_model(model_path)
-    print(f"[INFO] Model test accuracy: {test_acc}")
-    
-    print(f"[INFO] Loading test data from {csv_path}")
-    df = pd.read_csv(csv_path)
-    print(f"[INFO] Dataset contains {len(df)} samples")
-    
-    # Select random samples
-    if num_samples > len(df):
-        num_samples = len(df)
-    
-    sample_indices = np.random.choice(len(df), size=num_samples, replace=False)
-    
-    correct_predictions = 0
-    total_predictions = 0
-    
-    print(f"\n[INFO] Testing with {num_samples} random samples...")
-    print("="*80)
-    
-    for i, idx in enumerate(sample_indices):
-        row_data = df.iloc[idx]
+        accuracy, predictions, confidences = test_model_with_test_data(model_path, test_data_path)
         
-        # Get actual class if available
-        actual_class = row_data.get('class_name', 'Unknown')
+        # Additional analysis
+        print(f"\n{'='*60}")
+        print("ADDITIONAL ANALYSIS:")
+        print(f"{'='*60}")
         
-        # Extract features
-        exclude_cols = ['timestamp', 'hand_type', 'class_name']
-        feature_dict = {col: row_data[col] for col in df.columns if col not in exclude_cols}
+        # Load test data for analysis
+        import pandas as pd
+        df = pd.read_csv(test_data_path)
         
-        print(f"\nSample {i+1}/{num_samples} (Row {idx}):")
-        print(f"Actual class: {actual_class}")
-        
-        # Make prediction
-        try:
-            predicted_class, confidence, probabilities = predict_from_features(
-                model, label_encoder, feature_columns, feature_dict, show_probabilities=False
-            )
+        # Analyze by class
+        print("\nPrediction accuracy by class:")
+        for class_name in df['class_name'].unique():
+            class_mask = df['class_name'] == class_name
+            class_predictions = [predictions[i] for i in range(len(predictions)) if class_mask.iloc[i]]
+            class_actual = [df['class_name'].iloc[i] for i in range(len(df)) if class_mask.iloc[i]]
             
-            print(f"Predicted class: {predicted_class}")
-            print(f"Confidence: {confidence:.3f}")
-            
-            # Check if prediction is correct
-            if actual_class != 'Unknown':
-                is_correct = predicted_class == actual_class
-                print(f"Correct: {'✓' if is_correct else '✗'}")
-                
-                if is_correct:
-                    correct_predictions += 1
-                total_predictions += 1
-            
-        except Exception as e:
-            print(f"Prediction failed: {e}")
-    
-    if total_predictions > 0:
-        accuracy = correct_predictions / total_predictions
-        print(f"\n{'='*80}")
-        print(f"TEST RESULTS:")
-        print(f"  Samples tested: {total_predictions}")
-        print(f"  Correct predictions: {correct_predictions}")
-        print(f"  Test accuracy: {accuracy:.3f} ({accuracy*100:.1f}%)")
-        print(f"  Model training accuracy: {test_acc}")
+            if class_predictions:
+                class_accuracy = sum(1 for p, a in zip(class_predictions, class_actual) if p == a) / len(class_predictions)
+                print(f"  Class {class_name}: {class_accuracy:.3f} ({class_accuracy*100:.1f}%) - {len(class_predictions)} samples")
+        
+        # Show confidence distribution
+        print(f"\nConfidence Statistics:")
+        print(f"  Mean confidence: {np.mean(confidences):.3f}")
+        print(f"  Min confidence: {np.min(confidences):.3f}")
+        print(f"  Max confidence: {np.max(confidences):.3f}")
+        print(f"  Std deviation: {np.std(confidences):.3f}")
+        
+        print(f"\n{'='*60}")
+        print("Testing completed successfully!")
+        print(f"Overall Test Accuracy: {accuracy:.3f} ({accuracy*100:.1f}%)")
+        
+    except Exception as e:
+        print(f"[ERROR] Testing failed: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Test Random Forest model for LeapMotion gesture classification")
-    parser.add_argument("--model", type=str, required=True, 
-                       help="Path to trained model (.pkl file)")
-    
-    # Create subcommands
-    subparsers = parser.add_subparsers(dest='command', help='Available commands')
-    
-    # CSV prediction command
-    csv_parser = subparsers.add_parser('csv', help='Predict from CSV file')
-    csv_parser.add_argument("--csv", type=str, required=True, 
-                           help="Path to CSV file with features")
-    csv_parser.add_argument("--row", type=int, default=0, 
-                           help="Row index to predict (default: 0)")
-    
-    # Live prediction command
-    live_parser = subparsers.add_parser('live', help='Live prediction from Leap Motion')
-    live_parser.add_argument("--duration", type=int, default=10, 
-                            help="Prediction duration in seconds (default: 10)")
-    
-    # Test command
-    test_parser = subparsers.add_parser('test', help='Test model with dataset')
-    test_parser.add_argument("--csv", type=str, required=True, 
-                            help="Path to test CSV file")
-    test_parser.add_argument("--samples", type=int, default=10, 
-                            help="Number of samples to test (default: 10)")
-    
-    args = parser.parse_args()
-    
-    if not args.command:
-        parser.print_help()
-        exit(1)
-    
-    # Check if model exists
-    if not os.path.exists(args.model):
-        print(f"[ERROR] Model file not found: {args.model}")
-        exit(1)
-    
-    try:
-        if args.command == 'csv':
-            if not os.path.exists(args.csv):
-                print(f"[ERROR] CSV file not found: {args.csv}")
-                exit(1)
-            predict_from_csv_row(args.model, args.csv, args.row)
-            
-        elif args.command == 'live':
-            predict_live_leapmotion(args.model, args.duration)
-            
-        elif args.command == 'test':
-            if not os.path.exists(args.csv):
-                print(f"[ERROR] CSV file not found: {args.csv}")
-                exit(1)
-            test_model_with_dataset(args.model, args.csv, args.samples)
-            
-    except Exception as e:
-        print(f"[ERROR] {e}")
-        exit(1)
+    main()
