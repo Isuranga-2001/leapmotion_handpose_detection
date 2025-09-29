@@ -159,8 +159,8 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Train Random Forest for LeapMotion hand gesture classification")
-    parser.add_argument("--csv", type=str, default="data/rf_data/dataset.csv", 
-                       help="Path to input CSV dataset (default: ../../data/rf_data/dataset.csv)")
+    parser.add_argument("--csv", type=str, default="data/rf_data/data_bottom.csv", 
+                       help="Path to input CSV dataset (default: ../../data/rf_data/data_bottom.csv)")
     parser.add_argument("--model_out", type=str, default="model/rf/rf_leapmotion_gestures.pkl", 
                        help="Path to save trained model (default: model/rf/rf_leapmotion_gestures.pkl)")
     parser.add_argument("--test_size", type=float, default=0.2, 

@@ -174,7 +174,7 @@ def main():
     
     # Paths - using relative paths from the model directory
     model_path = "model/rf/rf_leapmotion_gestures.pkl"
-    test_data_path = "data/rf_data/test_data.csv"
+    test_data_path = "data/rf_data/test_data_bottom.csv"
     
     # Check if files exist
     if not os.path.exists(model_path):
