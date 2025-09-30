@@ -15,7 +15,7 @@ import joblib
 import argparse
 
 
-def load_gru_data(data_dir="data/gru_data"):
+def load_gru_data(data_dir="data/gru_data/v2"):
     """
     Load GRU sequence data from .npy files.
     
@@ -450,8 +450,8 @@ def predict_gesture(model, label_encoder, train_mean, train_std, sequence):
 
 def main():
     parser = argparse.ArgumentParser(description="Train GRU model for LeapMotion hand gesture classification")
-    parser.add_argument("--data_dir", type=str, default="data/gru_data",
-                       help="Directory containing .npy sequence files (default: data/gru_data)")
+    parser.add_argument("--data_dir", type=str, default="data/gru_data/v2",
+                       help="Directory containing .npy sequence files (default: data/gru_data/v2)")
     parser.add_argument("--model_dir", type=str, default="model/gru",
                        help="Directory to save trained model and artifacts (default: model/gru)")
     parser.add_argument("--epochs", type=int, default=100,

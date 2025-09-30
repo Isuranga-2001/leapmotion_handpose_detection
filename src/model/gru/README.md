@@ -58,7 +58,7 @@ python model_train.py
 
 ```bash
 python model_train.py \
-    --data_dir "../../data/gru_data" \
+    --data_dir "../../data/gru_data/v2" \
     --model_dir "." \
     --epochs 150 \
     --batch_size 16 \
@@ -69,7 +69,7 @@ python model_train.py \
 
 ### Training Parameters
 
-- `--data_dir`: Directory containing `.npy` sequence files (default: `data/gru_data`)
+- `--data_dir`: Directory containing `.npy` sequence files (default: `data/gru_data/v2`)
 - `--model_dir`: Directory to save trained model (default: `model/gru`)
 - `--epochs`: Maximum training epochs (default: 100)
 - `--batch_size`: Training batch size (default: 32)
@@ -148,7 +148,7 @@ After training, the following files are saved:
 from model_train import load_gru_data, preprocess_data, build_gru_model, train_gru_model
 
 # Load data
-X, y, class_names = load_gru_data("data/gru_data")
+X, y, class_names = load_gru_data("data/gru_data/v2")
 
 # Preprocess
 X_train, X_val, X_test, y_train, y_val, y_test, label_encoder, train_mean, train_std = preprocess_data(X, y)

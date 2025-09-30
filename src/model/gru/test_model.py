@@ -60,7 +60,7 @@ def test_model_loading(model_dir="."):
         return False
 
 
-def test_prediction_single_sequence(model_dir=".", data_dir="data/gru_data"):
+def test_prediction_single_sequence(model_dir=".", data_dir="data/gru_data/v2"):
     """Test prediction on a single sequence."""
     print("[TEST] Testing single sequence prediction...")
     
@@ -120,7 +120,7 @@ def test_prediction_single_sequence(model_dir=".", data_dir="data/gru_data"):
         return False
 
 
-def test_prediction_batch(model_dir=".", data_dir="data/gru_data"):
+def test_prediction_batch(model_dir=".", data_dir="data/gru_data/v2"):
     """Test batch prediction on multiple sequences."""
     print("[TEST] Testing batch prediction...")
     
@@ -169,7 +169,7 @@ def test_prediction_batch(model_dir=".", data_dir="data/gru_data"):
         return False
 
 
-def test_model_shapes(model_dir=".", data_dir="data/gru_data"):
+def test_model_shapes(model_dir=".", data_dir="data/gru_data/v2"):
     """Test if model input/output shapes are correct."""
     print("[TEST] Testing model input/output shapes...")
     
@@ -211,7 +211,7 @@ def test_model_shapes(model_dir=".", data_dir="data/gru_data"):
         return False
 
 
-def test_normalization(model_dir=".", data_dir="data/gru_data"):
+def test_normalization(model_dir=".", data_dir="data/gru_data/v2"):
     """Test if normalization parameters are reasonable."""
     print("[TEST] Testing normalization parameters...")
     
@@ -258,7 +258,7 @@ def test_normalization(model_dir=".", data_dir="data/gru_data"):
         return False
 
 
-def run_all_tests(model_dir=".", data_dir="data/gru_data"):
+def run_all_tests(model_dir=".", data_dir="data/gru_data/v2"):
     """Run all tests and return overall result."""
     print("="*60)
     print("🧪 GRU Model Validation Tests")
@@ -307,8 +307,8 @@ def main():
     parser = argparse.ArgumentParser(description="Test the trained GRU model")
     parser.add_argument("--model_dir", type=str, default=".",
                        help="Directory containing trained model (default: current directory)")
-    parser.add_argument("--data_dir", type=str, default="../../data/gru_data",
-                       help="Directory containing test data (default: ../../data/gru_data)")
+    parser.add_argument("--data_dir", type=str, default="../../data/gru_data/v2",
+                       help="Directory containing test data (default: ../../data/gru_data/v2)")
     
     args = parser.parse_args()
     

@@ -30,13 +30,37 @@ class VisualizationCanvas:
         
         cv2.putText(
             self.output_image,
-            "Press 's' to start countdown, 'space/x' to stop & save, 'ESC' to quit",
+            "Press 's' to start countdown, 'c' to set class, 'space/x' to stop & save, 'ESC' to quit",
             (10, 25),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.4,
+            0.35,
             self.font_colour,
             2,
         )
+        
+        # Show current class name
+        if capturer and capturer.current_class_name:
+            cv2.putText(
+                self.output_image,
+                f"Current Class: {capturer.current_class_name}",
+                (10, 45),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 255, 255),  # Cyan color for class name
+                2,
+            )
+            y_offset = 70
+        else:
+            cv2.putText(
+                self.output_image,
+                "No class set - Press 'c' to set class name",
+                (10, 45),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 0, 255),  # Red color for warning
+                2,
+            )
+            y_offset = 70
         
         # Show capture status and countdown
         if capturer:
@@ -46,7 +70,7 @@ class VisualizationCanvas:
                     cv2.putText(
                         self.output_image,
                         countdown_text,
-                        (10, 50),
+                        (10, y_offset),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         1.0,
                         (0, 255, 255),  # Yellow color for countdown
@@ -58,7 +82,7 @@ class VisualizationCanvas:
                 cv2.putText(
                     self.output_image,
                     status_text,
-                    (10, 50),
+                    (10, y_offset),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
                     status_color,
@@ -69,7 +93,7 @@ class VisualizationCanvas:
                 cv2.putText(
                     self.output_image,
                     f"Frames: {len(capturer.current_sequence)}/{capturer.seq_len}",
-                    (10, 75),
+                    (10, y_offset + 25),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.5,
                     (255, 255, 0),
@@ -194,7 +218,27 @@ class GRUCapture:
         self.countdown_active = False
         self.countdown_start_time = 0
         self.countdown_duration = 3  # 3 seconds
+        self.current_class_name = None  # Store current class name
         os.makedirs(save_dir, exist_ok=True)
+
+    def set_class_name(self):
+        """Ask user for class name and store it"""
+        root = tk.Tk()
+        root.withdraw()
+        class_name = simpledialog.askstring(
+            "Class Name Input", 
+            "Enter class name for sequences:",
+            parent=root
+        )
+        root.destroy()
+        
+        if class_name:
+            self.current_class_name = class_name
+            print(f"[INFO] Class name set to: {class_name}")
+        else:
+            print("[WARN] No class name entered")
+        
+        return class_name is not None
 
     def start_countdown(self):
         """Start the 3-second countdown before recording"""
@@ -202,9 +246,16 @@ class GRUCapture:
             print("[WARN] Already recording or countdown in progress")
             return
         
+        # Check if class name is set, if not ask for it
+        if not self.current_class_name:
+            print("[INFO] No class name set. Please enter a class name first.")
+            if not self.set_class_name():
+                print("[WARN] Cannot start recording without class name")
+                return
+        
         self.countdown_active = True
         self.countdown_start_time = time.time()
-        print("\n[INFO] Starting countdown...")
+        print(f"\n[INFO] Starting countdown for class '{self.current_class_name}'...")
 
     def update_countdown(self):
         """Update countdown and start recording when finished"""
@@ -252,27 +303,18 @@ class GRUCapture:
             print("[WARN] No sequence recorded")
             return
         
-        # Ask user for class label
-        root = tk.Tk()
-        root.withdraw()
-        class_name = simpledialog.askstring(
-            "Class Name Input", 
-            f"Enter class name for this sequence ({len(self.current_sequence)} frames)",
-            parent=root
-        )
-        root.destroy()
-        if not class_name:
-            print("[WARN] Sequence not saved (no class name).")
+        if not self.current_class_name:
+            print("[ERROR] No class name set, cannot save sequence")
             return
         
-        # Save as .npy file
+        # Save as .npy file using current class name
         arr = np.array(self.current_sequence, dtype=np.float32)
-        filename = f"{class_name}_{int(time.time())}.npy"
+        filename = f"{self.current_class_name}_{int(time.time())}.npy"
         filepath = os.path.join(self.save_dir, filename)
         np.save(filepath, arr)
 
         print(f"[INFO] Sequence saved -> {filepath} (shape={arr.shape})")
-        self.sequences.append((filepath, class_name))
+        self.sequences.append((filepath, self.current_class_name))
 
     def add_frame(self, features):
         if self.is_recording:
@@ -353,6 +395,7 @@ def main():
             print(f"Sequence length: {capturer.seq_len} frames")
             print(f"Save directory: {capturer.save_dir}")
             print("\nControls:")
+            print("  'c' = Set class name")
             print("  's' = Start 3-second countdown then record")
             print("  'space/x' = Stop & save sequence")
             print("  'ESC' = Quit")
@@ -366,6 +409,8 @@ def main():
                 key = cv2.waitKey(1) & 0xFF
                 if key == 27:  # ESC
                     running = False
+                elif key == ord('c'):  # 'c' - set class name
+                    capturer.set_class_name()
                 elif key == ord('s'):  # Start countdown
                     capturer.start_countdown()
                 elif key == 32 or key == ord('x'):  # Space or 'x' - stop and save
@@ -380,6 +425,7 @@ def main():
         cv2.destroyAllWindows()
         
         print(f"\nSession Summary:")
+        print(f"  - Current class: {capturer.current_class_name or 'Not set'}")
         print(f"  - Total sequences captured: {len(capturer.sequences)}")
         
         if capturer.sequences:
