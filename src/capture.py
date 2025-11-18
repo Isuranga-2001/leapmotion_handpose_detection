@@ -8,7 +8,7 @@ import os
 import argparse
 import tkinter as tk
 from tkinter import simpledialog
-from functions.extract_features import extract_features, MyListener
+from functions.lmc_extract_features import extract_features, MyListener
 
 
 class VisualizationCanvas:

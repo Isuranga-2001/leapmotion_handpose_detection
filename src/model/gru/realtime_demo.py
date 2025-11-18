@@ -22,7 +22,7 @@ if current_dir not in sys.path:
 
 try:
     import leap
-    from functions.extract_features import extract_features
+    from functions.lmc_extract_features import extract_features
     from model_train import load_model_artifacts, predict_gesture
 except ImportError as e:
     print(f"[ERROR] Import error: {e}")

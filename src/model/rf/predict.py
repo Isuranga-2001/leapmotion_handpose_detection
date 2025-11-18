@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     import leap
-    from functions.extract_features import extract_features
+    from functions.lmc_extract_features import extract_features
     LEAP_AVAILABLE = True
 except ImportError:
     print("[WARNING] Leap Motion SDK not available. Only CSV-based prediction will work.")

@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 import tkinter as tk
 from tkinter import simpledialog
-from functions.extract_features import extract_features
+from functions.lmc_extract_features import extract_features
 
 
 class VisualizationCanvas:
