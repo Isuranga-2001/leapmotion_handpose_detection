@@ -3,7 +3,7 @@ build
 cffi
 
 # Computer vision and data processing
-opencv-python
+opencv-python>=4.5.0
 numpy>=1.21.0
 pandas>=1.3.0
 
@@ -13,6 +13,17 @@ joblib>=1.1.0
 
 # Machine Learning - GRU Model (Deep Learning)
 tensorflow>=2.10.0,<3.0.0
+
+# PyTorch for multimodal fusion models
+torch>=2.0.0
+torchvision>=0.15.0
+
+# MediaPipe for facial landmark detection
+mediapipe>=0.10.0
+
+# Additional utilities
+scipy>=1.7.0
+tensorboard>=2.10.0
 
 # Data visualization and analysis
 matplotlib>=3.5.0

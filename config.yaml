@@ -1,0 +1,175 @@
+# Multimodal Gesture Recognition Configuration
+
+# Model Architecture
+model:
+  # Input dimensions
+  lmc_input_dim: 115        # LMC feature dimension (81 joints + 34 geometric)
+  rgb_input_dim: 189        # RGB feature dimension (62 landmarks * 3 + 3 pose)
+  
+  # Encoder settings
+  encoder_output_dim: 256   # Output dimension for both encoders
+  
+  lmc_encoder:
+    type: mlp               # Options: mlp, cnn, hybrid
+    hidden_dims: [256, 256, 128]
+    dropout: 0.2
+  
+  rgb_encoder:
+    type: mlp               # Options: mlp, cnn, lstm, transformer
+    hidden_dims: [256, 256, 128]
+    dropout: 0.2
+  
+  # Fusion settings
+  fusion:
+    type: concat            # Options: concat, weighted, gated, bilinear, cross_attention, co_attention
+    output_dim: 512
+    use_cross_attention: false
+    num_heads: 8            # For attention-based fusion
+    dropout: 0.1
+  
+  # GRU settings
+  gru:
+    hidden_dim: 256
+    num_layers: 2
+    bidirectional: true
+    dropout: 0.2
+  
+  # Classifier
+  num_classes: 10           # Number of gesture classes
+  classifier_dropout: 0.3
+
+# Training Configuration
+training:
+  # Data
+  train_dir: ./data/train
+  val_dir: ./data/val
+  sequence_length: 30       # Number of frames per sequence
+  
+  # Hyperparameters
+  batch_size: 32
+  epochs: 100
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  
+  # Optimization
+  optimizer: adam           # Options: adam, sgd, adamw
+  scheduler: plateau        # Options: plateau, cosine, step
+  scheduler_patience: 5
+  scheduler_factor: 0.5
+  
+  # Data augmentation
+  augmentation:
+    enabled: true
+    noise_std: 0.01
+    time_warp: true
+    time_warp_range: [0.8, 1.2]
+  
+  # Training settings
+  num_workers: 4
+  pin_memory: true
+  early_stopping_patience: 15
+  
+  # Logging
+  log_interval: 10          # Log every N batches
+  save_interval: 10         # Save checkpoint every N epochs
+  
+  # Paths
+  save_dir: ./checkpoints
+  log_dir: ./logs
+
+# Data Collection Configuration
+data_collection:
+  # Recording settings
+  duration: 5.0             # Recording duration (seconds)
+  fps: 30.0                 # Target frame rate
+  
+  # LMC settings
+  lmc:
+    include_geometric_features: true
+  
+  # RGB settings
+  rgb:
+    camera_id: 0
+    extract_features: true
+    save_images: false
+    image_dir: ./data/images
+  
+  # Synchronization
+  sync:
+    max_time_diff: 0.05     # Max allowed time difference (seconds)
+    target_fps: 30.0        # Target FPS for synchronized stream
+
+# Inference Configuration
+inference:
+  model_path: ./checkpoints/best_model.pth
+  label_map_path: ./data/label_mapping.json
+  
+  # Settings
+  sequence_length: 30
+  confidence_threshold: 0.5
+  device: cuda              # Options: cuda, cpu
+  
+  # Display
+  display: true
+  save_video: null          # Set to path to save output video
+  
+  # Camera
+  camera_id: 0
+
+# Hardware Configuration
+hardware:
+  device: cuda              # Options: cuda, cpu
+  gpu_id: 0
+  use_mixed_precision: false
+  num_workers: 4
+
+# Gestures to Recognize
+gestures:
+  - thumbs_up
+  - peace_sign
+  - okay
+  - wave
+  - fist
+  - pointing
+  - open_palm
+  - come_here
+  - stop
+  - love_you
+
+# Preprocessing
+preprocessing:
+  normalize: true
+  remove_outliers: true
+  outlier_threshold: 3.0    # Standard deviations
+  
+  lmc:
+    coordinate_system: leap  # Options: leap, normalized
+    scale_factor: 1.0
+  
+  rgb:
+    landmark_subset: key    # Options: all, key (62 landmarks)
+    normalize_pose: true
+
+# Evaluation
+evaluation:
+  metrics:
+    - accuracy
+    - precision
+    - recall
+    - f1_score
+    - confusion_matrix
+  
+  save_predictions: true
+  prediction_output: ./results/predictions.json
+  
+  visualization:
+    plot_confusion_matrix: true
+    plot_training_curves: true
+    save_attention_maps: false
+
+# Debugging
+debug:
+  verbose: false
+  save_intermediate_features: false
+  visualize_data: false
+  check_nan: true
